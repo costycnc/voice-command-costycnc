@@ -19,19 +19,29 @@
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
+        .btn-group {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
         button {
-            padding: 15px 30px;
-            font-size: 18px;
-            background-color: #007bff;
+            padding: 15px 25px;
+            font-size: 16px;
             color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
-            margin-top: 20px;
+            font-weight: bold;
         }
-        button:hover { background-color: #0056b3; }
+        #startBtn { background-color: #28a745; } /* Verde */
+        #startBtn:hover { background-color: #218838; }
+        
+        #stopBtn { background-color: #dc3545; } /* Rosso */
+        #stopBtn:hover { background-color: #c82333; }
+        
         .status { margin-top: 25px; font-weight: bold; color: #555; }
-        .detected { color: green; font-size: 20px; margin-top: 10px; }
+        .detected { color: green; font-size: 20px; margin-top: 10px; min-height: 30px; }
         input { padding: 10px; font-size: 16px; width: 80%; text-align: center; margin-bottom: 20px; }
     </style>
 </head>
@@ -40,73 +50,89 @@
 <div class="container">
     <h2>Controllo Vocale MKS-DLC32</h2>
     
-    <!-- Inserisci qui l'IP reale della tua scheda MKS -->
-    <label for="ip">IP della Scheda MKS-DLC32:</label><br>
+    <label for="cncIp">IP della Scheda MKS-DLC32:</label><br>
     <input type="text" id="cncIp" value="192.168.1.100" placeholder="Es. 192.168.1.100"><br>
 
-    <button id="startBtn">Attiva Ascolto Vocale</button>
+    <div class="btn-group">
+        <button id="startBtn">Attiva Ascolto</button>
+        <button id="stopBtn">Ferma Ascolto</button>
+    </div>
     
-    <div class="status" id="statusField">Stato: Clicca sul pulsante per iniziare</div>
+    <div class="status" id="statusField">Stato: Spento</div>
     <div class="detected" id="textField"></div>
 </div>
 
 <script>
     const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
     const statusField = document.getElementById('statusField');
     const textField = document.getElementById('textField');
+
+    let isListening = false; // Controlla se l'utente vuole che rimanga attivo
 
     // Configurazione del riconoscimento vocale
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     
     if (!SpeechRecognition) {
         statusField.textContent = "Errore: Il tuo browser non supporta il riconoscimento vocale. Usa Google Chrome.";
+        statusField.style.color = "red";
     } else {
         const recognition = new SpeechRecognition();
-        recognition.lang = 'it-IT'; // Imposta la lingua italiana
-        recognition.continuous = true; // Continua ad ascoltare
+        recognition.lang = 'it-IT';
+        recognition.continuous = true;
         recognition.interimResults = false;
 
+        // Gestione pulsante ATTIVA
         startBtn.addEventListener('click', () => {
+            isListening = true;
             recognition.start();
-            statusField.textContent = "Stato: In ascolto... Parla ora (Dì 'avanti')";
+            statusField.textContent = "Stato: In ascolto... Dì 'avanti'";
             statusField.style.color = "blue";
+        });
+
+        // Gestione pulsante FERMA
+        stopBtn.addEventListener('click', () => {
+            isListening = false;
+            recognition.stop();
+            statusField.textContent = "Stato: Ascolto interrotto manualmente.";
+            statusField.style.color = "red";
+            textField.textContent = "";
         });
 
         recognition.onresult = (event) => {
             const currentResultIndex = event.resultIndex;
-            const textSpoken = event.results[currentResultIndex][0].transcript.toLowerCase().trim();
+            const textSpoken = event.results[currentResultIndex].transcript.toLowerCase().trim();
             textField.textContent = `Hai detto: "${textSpoken}"`;
 
-            // Controllo della parola chiave
             if (textSpoken.includes('avanti')) {
                 inviaComandoCNC();
             }
         };
 
         recognition.onerror = (event) => {
-            statusField.textContent = `Errore di riconoscimento: ${event.error}`;
-            statusField.style.color = "red";
+            if (event.error !== 'no-speech') {
+                statusField.textContent = `Errore di riconoscimento: ${event.error}`;
+                statusField.style.color = "red";
+            }
         };
 
         recognition.onend = () => {
-            // Riavvia automaticamente l'ascolto se si interrompe
-            recognition.start();
+            // Se l'utente NON ha premuto stop, riavvia l'ascolto automaticamente quando scade il tempo
+            if (isListening) {
+                recognition.start();
+            }
         };
     }
 
-    // Funzione per inviare il G-code alla scheda MKS-DLC32 tramite HTTP POST
+    // Funzione per inviare il comando alla scheda
     function inviaComandoCNC() {
         const ip = document.getElementById('cncIp').value;
-        const url = `http://${ip}/command`; // Endpoint standard per FluidNC / GRBL WebUI
-        
-        // Il comando G-code: G91 (movimento relativo), G0 (rapido), Y10 (avanti di 10mm)
-        // Cambia Y10 con X10 o Z10 a seconda di quale sia l'asse "avanti" sulla tua macchina
+        const url = `http://${ip}/command`;
         const gcode = "G91 G0 Y10"; 
 
         statusField.textContent = "Stato: Invio comando 'Avanti' alla CNC...";
         statusField.style.color = "orange";
 
-        // Invio della richiesta HTTP alla scheda
         fetch(url, {
             method: 'POST',
             headers: {
@@ -116,16 +142,16 @@
         })
         .then(response => {
             if(response.ok) {
-                statusField.textContent = "Stato: Comando eseguito con successo!";
+                statusField.textContent = "Stato: Comando eseguito! In ascolto...";
                 statusField.style.color = "green";
             } else {
-                statusField.textContent = "Errore: La scheda ha risposto con un errore.";
+                statusField.textContent = "Errore: Risposta errata dalla scheda.";
                 statusField.style.color = "red";
             }
         })
         .catch(error => {
             console.error('Errore:', error);
-            statusField.textContent = "Errore di connessione: Verifica che l'IP sia corretto e di essere connesso alla stessa rete Wi-Fi.";
+            statusField.textContent = "Errore di connessione. Controlla Wi-Fi e IP.";
             statusField.style.color = "red";
         });
     }
@@ -133,3 +159,4 @@
 
 </body>
 </html>
+
