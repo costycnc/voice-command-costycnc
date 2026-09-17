@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Vocale</title>
+    <style>
+        body { 
+            margin: 0; 
+            background: #111; 
+            color: white;
+            font-family: sans-serif;
+            display: flex; 
+            flex-direction: column;
+            align-items: center; 
+            justify-content: center; 
+            height: 100vh; 
+            overflow: hidden; 
+        }
+        #controls {
+            position: absolute;
+            top: 20px;
+            z-index: 10;
+            text-align: center;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            background: #ff4d4d;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: 0.2s;
+        }
+        button:hover { background: #ff3333; }
+        button:disabled { background: #555; }
+        #status {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #aaa;
+            min-height: 20px;
+        }
+        canvas { 
+            background: #000; 
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="controls">
+        <button id="btnSpeech" onclick="avviaAscolto()">Avvia Ascolto Vocale</button>
+        <div id="status">Clicca sul pulsante e parla...</div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        // Configurazione Canvas
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        function ridimensionaCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', ridimensionaCanvas);
+        ridimensionaCanvas();
+
+        // Configurazione Riconoscimento Vocale
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const statusDiv = document.getElementById('status');
+        const btnSpeech = document.getElementById('btnSpeech');
+
+        if (!SpeechRecognition) {
+            statusDiv.innerText = "Il tuo browser non supporta il riconoscimento vocale nativo.";
+            btnSpeech.disabled = true;
+        } else {
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'it-IT';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            function avviaAscolto() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height); // Pulisce il canvas precedente
+                recognition.start();
+            }
+
+            recognition.onstart = function() {
+                statusDiv.innerText = "Ascoltando... parla ora (es: 'fai 3 cerchi da 60')";
+                btnSpeech.innerText = "🎙️ In ascolto...";
+            };
+
+            recognition.onend = function() {
+                btnSpeech.innerText = "Avvia Ascolto Vocale";
+            };
+
+            recognition.onerror = function(event) {
+                statusDiv.innerText = "Errore: " + event.error;
+            };
+
+            recognition.onresult = function(event) {
+                const testo = event.results[0][0].transcript.toLowerCase();
+                statusDiv.innerText = `Hai detto: "${testo}"`;
+                
+                // Analizziamo il testo per cercare la parola chiave "cerchi"
+                if (testo.includes('cerch')) { 
+                    // Trova tutti i numeri presenti nella frase
+                    const numeri = testo.match(/\d+/g); 
+                    
+                    if (numeri && numeri.length >= 1) {
+                        const quantita = parseInt(numeri[0]); // Primo numero = Quanti cerchi
+                        let raggio = 40; // Valore di default se non dici la dimensione
+                        
+                        if (numeri.length >= 2) {
+                            raggio = parseInt(numeri[1]); // Secondo numero = Dimensione (raggio)
+                        }
+
+                        // Disegna i cerchi richiesti
+                        for (let i = 0; i < quantita; i++) {
+                            disegnaCerchioCasuale(raggio);
+                        }
+                    } else {
+                        statusDiv.innerText += " (Specificare un numero di cerchi!)";
+                    }
+                } else {
+                    statusDiv.innerText += " (Comando non riconosciuto. Prova a dire 'cerchi')";
+                }
+            };
+        }
+
+        // Funzione Grafica per i Cerchi
+        function disegnaCerchioCasuale(raggio) {
+            // Posizioni casuali confinate all'interno dello schermo
+            const x = Math.random() * (canvas.width - raggio * 2) + raggio;
+            const y = Math.random() * (canvas.height - raggio * 2) + raggio;
+            
+            // Genera colori casuali brillanti
+            const r = Math.floor(Math.random() * 200) + 55;
+            const g = Math.floor(Math.random() * 200) + 55;
+            const b = Math.floor(Math.random() * 200) + 55;
+
+            ctx.beginPath();
+            ctx.arc(x, y, raggio, 0, 2 * Math.PI);
+            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.8)`;
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+    </script>
+</body>
+</html>
