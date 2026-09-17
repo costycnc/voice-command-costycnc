@@ -68,7 +68,7 @@
     const statusField = document.getElementById('statusField');
     const textField = document.getElementById('textField');
 
-    let isListening = false; // Controlla se l'utente vuole che rimanga attivo
+    let isListening = false; 
 
     // Configurazione del riconoscimento vocale
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -99,13 +99,19 @@
             textField.textContent = "";
         });
 
+        // Gestione corretta e sicura dei risultati vocali
         recognition.onresult = (event) => {
-            const currentResultIndex = event.resultIndex;
-            const textSpoken = event.results[currentResultIndex].transcript.toLowerCase().trim();
-            textField.textContent = `Hai detto: "${textSpoken}"`;
+            const lastResultIndex = event.results.length - 1;
+            const resultObj = event.results[lastResultIndex];
+            
+            // Verifica che l'oggetto e la proprietà [0] esistano prima di procedere
+            if (resultObj && resultObj[0]) {
+                const textSpoken = resultObj[0].transcript.toLowerCase().trim();
+                textField.textContent = `Hai detto: "${textSpoken}"`;
 
-            if (textSpoken.includes('avanti')) {
-                inviaComandoCNC();
+                if (textSpoken.includes('avanti')) {
+                    inviaComandoCNC();
+                }
             }
         };
 
@@ -117,18 +123,22 @@
         };
 
         recognition.onend = () => {
-            // Se l'utente NON ha premuto stop, riavvia l'ascolto automaticamente quando scade il tempo
+            // Riavvia l'ascolto se l'utente non ha premuto stop e la sessione scade
             if (isListening) {
-                recognition.start();
+                try {
+                    recognition.start();
+                } catch(e) {
+                    console.log("Riconoscimento già attivo o in fase di avvio.");
+                }
             }
         };
     }
 
-    // Funzione per inviare il comando alla scheda
+    // Funzione per inviare il comando HTTP POST alla scheda MKS-DLC32
     function inviaComandoCNC() {
         const ip = document.getElementById('cncIp').value;
         const url = `http://${ip}/command`;
-        const gcode = "G91 G0 Y10"; 
+        const gcode = "G91 G0 Y10"; // Comando per asse Y in avanti di 10mm
 
         statusField.textContent = "Stato: Invio comando 'Avanti' alla CNC...";
         statusField.style.color = "orange";
@@ -159,4 +169,3 @@
 
 </body>
 </html>
-
