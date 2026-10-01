@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controllo Vocale CNC</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 30px; background: #f4f4f9; }
+        h2 { margin-bottom: 20px; }
+        .box { display: inline-block; margin: 10px; padding: 15px 25px; background: #fff; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); min-width: 150px; }
+        .box label { display: block; font-size: 13px; color: #666; margin-bottom: 8px; }
+        .box input { font-size: 16px; font-weight: bold; color: #007bff; border: 1px solid #ccc; border-radius: 6px; padding: 6px 10px; background: #fff; width: 220px; text-align: center; }
+        .box input.num { width: 90px; }
+        .box select { font-size: 18px; font-weight: bold; color: #007bff; border: 1px solid #ccc; border-radius: 6px; padding: 6px 10px; background: #fff; cursor: pointer; }
+        #b { padding: 15px 30px; font-size: 18px; color: #fff; background: #007bff; border: none; border-radius: 8px; cursor: pointer; margin: 20px 0; }
+        #b:disabled { background: #999; cursor: not-allowed; }
+        #s { font-weight: bold; color: #555; min-height: 24px; word-break: break-all; }
+        #t { color: green; font-size: 18px; min-height: 24px; }
+        .commands { text-align: left; max-width: 1100px; margin: 30px auto 0; background: #fff; padding: 20px 25px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .commands h3 { margin-top: 0; color: #333; }
+        .cmd-group { padding: 12px 0; border-bottom: 1px solid #eee; }
+        .cmd-group:last-child { border-bottom: none; }
+        .cmd-name { font-weight: bold; color: #007bff; font-size: 14px; margin-bottom: 8px; }
+        .cmd-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+        .cmd-row .lbl { font-size: 12px; color: #888; width: 110px; flex-shrink: 0; text-align: right; }
+        .cmd-row input.gcode { flex: 1; padding: 8px 10px; font-family: monospace; font-size: 13px; border: 1px solid #ccc; border-radius: 6px; color: #333; background: #fafafa; box-sizing: border-box; }
+        .cmd-row input.gcode:focus { outline: none; border-color: #007bff; background: #fff; }
+        .cmd-btn { padding: 4px 12px; font-size: 13px; font-weight: bold; color: #fff; background: #28a745; border: none; border-radius: 6px; cursor: pointer; }
+        .cmd-btn:hover { background: #218838; }
+        .cmd-btn:active { background: #1e7e34; }
+        .reset-btn { margin-top: 12px; padding: 8px 16px; font-size: 13px; background: #eee; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; }
+        .reset-btn:hover { background: #ddd; }
+        .hint { font-size: 13px; color: #888; margin: 8px 0 12px; }
+        .info-box { background: #e8f5e9; border-left: 4px solid #43a047; padding: 10px 16px; margin: 12px 0; border-radius: 6px; font-size: 13px; color: #1b5e20; }
+    </style>
+</head>
+<body>
+<div style="max-width:800px; margin:0 auto 20px auto; text-align:center; line-height:2.6;">
+        <a href="https://www.costycnc.it/">Home</a> |
+        <a href="https://www.costycnc.it/prezzi">Prodotti</a> |
+        <a href="https://www.costycnc.it/pezzi">Ricambio</a> |
+        <a href="https://www.costycnc.it/tutorial/">Tutorial</a> |
+        <a href="https://www.costycnc.it/tools/">Tools</a> |
+        <a href="https://www.costycnc.it/about/">Chi sono</a> |
+        <a href="https://www.costycnc.it/blog/">Blog</a> |
+        <a href="https://www.costycnc.it/firmware/">Firmware</a> |
+        <a href="https://www.costycnc.it/webserial">WEBSERIAL</a> |
+        <a href="https://www.costycnc.it/avr1/">AVR ASM</a> |
+        <a href="https://www.costycnc.it/#prodotti">Acquista →</a>
+		 <a href="https://translate.google.com/translate?sl=it&amp;tl=en&amp;u=https://costycnc.it/ai/5">🌐 Translate</a>
+    </div>
+
+<h2>🎤 Controllo Vocale CNC</h2>
+
+<div class="box">
+    <label>🌐 IP ESP ({IP})</label>
+    <input type="text" id="ip" placeholder="es. 192.168.1.7">
+</div>
+<div class="box">
+    <label>🌡️ PWM / Caldo ({S})</label>
+    <select id="pwm"></select>
+</div>
+<div class="box">
+    <label>⚡ Velocità ({F})</label>
+    <select id="vel"></select>
+</div>
+<div class="box">
+    <label>📏 Movimento ({D})</label>
+    <input type="number" class="num" id="mov" min="1" step="1">
+</div>
+
+<br>
+<button id="b">🎤 Ascolta</button>
+<p id="s">Pronto</p>
+<p id="t"></p>
+
+<div class="commands">
+    <h3>📋 Caselle URL e pulsanti</h3>
+    <p class="hint">
+        Clicca <b>▶</b> per inviare il comando "senza numero".<br>
+        I comandi <b>con numero</b> (es. "avanti 50") sono solo vocali.
+    </p>
+
+    <div class="info-box">
+        🔥 Dopo ogni comando viene inviato automaticamente <b>S0</b> per spegnere il filo caldo.
+    </div>
+
+    <div class="cmd-group">
+        <div class="cmd-name">"avanti"</div>
+        <div class="cmd-row">
+            <button class="cmd-btn" data-target="avanti-base">▶</button>
+            <span class="lbl">Senza numero:</span>
+            <input class="gcode" id="avanti-base">
+        </div>
+        <div class="cmd-row"><span class="lbl">Con numero ({n}):</span><input class="gcode" id="avanti-num"></div>
+    </div>
+
+    <div class="cmd-group">
+        <div class="cmd-name">"dietro"</div>
+        <div class="cmd-row">
+            <button class="cmd-btn" data-target="dietro-base">▶</button>
+            <span class="lbl">Senza numero:</span>
+            <input class="gcode" id="dietro-base">
+        </div>
+        <div class="cmd-row"><span class="lbl">Con numero ({n}):</span><input class="gcode" id="dietro-num"></div>
+    </div>
+
+    <div class="cmd-group">
+        <div class="cmd-name">"su"</div>
+        <div class="cmd-row">
+            <button class="cmd-btn" data-target="su-base">▶</button>
+            <span class="lbl">Senza numero:</span>
+            <input class="gcode" id="su-base">
+        </div>
+        <div class="cmd-row"><span class="lbl">Con numero ({n}):</span><input class="gcode" id="su-num"></div>
+    </div>
+
+    <div class="cmd-group">
+        <div class="cmd-name">"giù"</div>
+        <div class="cmd-row">
+            <button class="cmd-btn" data-target="giu-base">▶</button>
+            <span class="lbl">Senza numero:</span>
+            <input class="gcode" id="giu-base">
+        </div>
+        <div class="cmd-row"><span class="lbl">Con numero ({n}):</span><input class="gcode" id="giu-num"></div>
+    </div>
+
+    <div class="cmd-group">
+        <div class="cmd-name">"gira"</div>
+        <div class="cmd-row">
+            <button class="cmd-btn" data-target="gira-base">▶</button>
+            <span class="lbl">Senza numero:</span>
+            <input class="gcode" id="gira-base">
+        </div>
+        <div class="cmd-row"><span class="lbl">Con numero ({n}):</span><input class="gcode" id="gira-num"></div>
+    </div>
+
+    <div class="cmd-group">
+        <div class="cmd-name">"taglia"</div>
+        <div class="cmd-row">
+            <button class="cmd-btn" data-target="taglia-base">▶</button>
+            <span class="lbl">Senza numero:</span>
+            <input class="gcode" id="taglia-base">
+        </div>
+    </div>
+
+    <button class="reset-btn" id="resetAllBtn">↺ Ripristina tutti i default</button>
+</div>
+
+
+<section id="documentazione"
+  style="max-width:1100px; margin:40px auto 0; text-align:left;
+  background:#fff; padding:24px 28px; border-radius:10px;
+  box-shadow:0 2px 6px rgba(0,0,0,0.1); line-height:1.6; color:#333;">
+
+  <h2>Controllo vocale CNC dal browser</h2>
+  
+      <p>
+    <a
+      href="https://www.instructables.com/Come-Controllare-Una-CNC-Con-La-Voce-Usando-ESP32-/"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      Leggi il tutorial completo su Instructables →
+    </a>
+  </p>
+
+  <p>
+    <strong>Instructables</strong> contiene la procedura passo passo,
+    mentre questa pagina contiene il programma CostyCNC e la documentazione
+    tecnica del sistema.
+  </p>
+
+  <h3>Cos'è questa pagina</h3>
+
+  <p>
+    Questa pagina permette di controllare una macchina CNC tramite
+    <strong>comandi vocali in italiano</strong> oppure tramite pulsanti,
+    direttamente dal browser.
+  </p>
+
+  <p>
+    I comandi vocali vengono interpretati dalla pagina e trasformati in
+    istruzioni <strong>G-code</strong>, che vengono inviate tramite
+    <strong>HTTP</strong> al controller della macchina attraverso la rete WiFi.
+  </p>
+
+  <p>
+    Il sistema può essere utilizzato con macchine CNC, laser, fresatrici
+    e macchine a <strong>filo caldo (hot wire)</strong>, purché il controller
+    disponga di WiFi e di un web server in grado di ricevere comandi
+    G-code tramite richieste HTTP.
+  </p>
+
+
+  <h3>Compatibilità con controller CNC WiFi</h3>
+
+  <p>
+    Il sistema non è legato a una particolare macchina.
+    Può funzionare con controller basati su
+    <strong>ESP32</strong> o <strong>ESP8266</strong> e con altri controller
+    che espongono un'interfaccia web per l'invio di comandi G-code.
+  </p>
+
+  <p>
+    Sono supportate sia le configurazioni WiFi
+    <strong>AP (Access Point)</strong> sia
+    <strong>STA (Station)</strong>, quando il controller permette di ricevere
+    richieste HTTP dalla rete.
+  </p>
+
+  <p>
+    Il requisito principale è che il controller accetti una richiesta
+    HTTP di questo tipo:
+  </p>
+
+  <pre style="background:#f6f8fa; padding:12px; border-radius:6px; overflow:auto;"><code>http://{IP}/command?commandText=[GCODE]</code></pre>
+
+
+  <h3>Compatibilità con CostyCNC</h3>
+
+  <p>
+    Il sistema è compatibile anche con <strong>CostyCNC</strong>,
+    macchine CNC a filo caldo progettate per il taglio di
+    <strong>polistirolo, EPS, XPS e foam</strong>.
+  </p>
+
+  <p>
+    Le macchine CostyCNC utilizzano controller
+    <strong>MKS-DLC32</strong> basati su ESP32 e dotati di WiFi.
+    Il controllo vocale può quindi essere utilizzato per inviare
+    comandi di movimento e altre istruzioni G-code direttamente
+    dal browser.
+  </p>
+
+
+  <h3>Comandi vocali disponibili</h3>
+
+  <table style="width:100%; border-collapse:collapse; margin-bottom:16px;">
+
+    <thead>
+      <tr style="background:#f0f0f0;">
+        <th style="text-align:left; padding:8px; border:1px solid #ddd;">
+          Comando vocale
+        </th>
+
+        <th style="text-align:left; padding:8px; border:1px solid #ddd;">
+          Azione
+        </th>
+      </tr>
+    </thead>
+
+    <tbody>
+
+      <tr>
+        <td style="padding:8px; border:1px solid #ddd;">
+          "avanti"
+        </td>
+        <td style="padding:8px; border:1px solid #ddd;">
+          Muove l'asse X di +D mm (default 10 mm).
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:8px; border:1px solid #ddd;">
+          "avanti 100"
+        </td>
+        <td style="padding:8px; border:1px solid #ddd;">
+          Muove l'asse X di +100 mm.
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:8px; border:1px solid #ddd;">
+          "dietro"
+        </td>
+        <td style="padding:8px; border:1px solid #ddd;">
+          Muove l'asse X di −D mm (default 10 mm).
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:8px; border:1px solid #ddd;">
+          "dietro 50"
+        </td>
+        <td style="padding:8px; border:1px solid #ddd;">
+          Muove l'asse X di −50 mm.
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:8px; border:1px solid #ddd;">
+          "su"
+        </td>
+        <td style="padding:8px; border:1px solid #ddd;">
+          Muove l'asse Y di −D mm (default 10 mm).
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:8px; border:1px solid #ddd;">
+          "su 25"
+        </td>
+        <td style="padding:8px; border:1px solid #ddd;">
+          Muove l'asse Y di −25 mm.
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:8px; border:1px solid #ddd;">
+          "giù"
+        </td>
+        <td style="padding:8px; border:1px solid #ddd;">
+          Muove l'asse Y di +D mm (default 10 mm).
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:8px; border:1px solid #ddd;">
+          "giù 30"
+        </td>
+        <td style="padding:8px; border:1px solid #ddd;">
+          Muove l'asse Y di +30 mm.
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:8px; border:1px solid #ddd;">
+          "gira"
+        </td>
+        <td style="padding:8px; border:1px solid #ddd;">
+          Muove l'asse Z di 8 mm (default).
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:8px; border:1px solid #ddd;">
+          "gira 12"
+        </td>
+        <td style="padding:8px; border:1px solid #ddd;">
+          Muove l'asse Z di 12 mm.
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:8px; border:1px solid #ddd;">
+          "taglia"
+        </td>
+        <td style="padding:8px; border:1px solid #ddd;">
+          Esegue il file G-code indicato nella configurazione della pagina
+          e salvato sulla scheda SD della MKS-DLC32.
+          Il nome predefinito è <code>costycnc.nc</code>, ma può essere
+          sostituito con un altro nome, ad esempio <code>maria.nc</code>.
+        </td>
+      </tr>
+
+    </tbody>
+  </table>
+
+
+  <h3>Parametri configurabili</h3>
+
+  <ul>
+
+    <li>
+      <strong>IP ESP:</strong>
+      indirizzo IP del controller sulla rete locale,
+      ad esempio <code>192.168.1.36</code>.
+    </li>
+
+    <li>
+      <strong>PWM / Caldo (S):</strong>
+      valore di potenza utilizzato dal laser o dal filo caldo.
+    </li>
+
+    <li>
+      <strong>Velocità (F):</strong>
+      velocità di movimento in mm/min.
+    </li>
+
+    <li>
+      <strong>Movimento (D):</strong>
+      distanza utilizzata quando il comando vocale
+      non contiene un valore numerico.
+    </li>
+
+    <li>
+      <strong>File G-code:</strong>
+      nome del file <code>.nc</code> presente sulla scheda SD
+      della MKS-DLC32 che deve essere eseguito con il comando
+      vocale <strong>"taglia"</strong>.
+    </li>
+
+  </ul>
+
+  <p>
+    Le impostazioni e le caselle G-code vengono salvate
+    nel <strong>localStorage</strong> del browser.
+  </p>
+
+
+  <h3>Esecuzione di un file G-code dalla scheda SD</h3>
+
+  <p>
+    Il comando vocale <strong>"taglia"</strong> avvia il file G-code
+    indicato nella configurazione della pagina e presente sulla
+    <strong>scheda SD della MKS-DLC32</strong>.
+  </p>
+
+  <p>
+    Il nome predefinito del file è <code>costycnc.nc</code>.
+    Questo nome non è obbligatorio e può essere modificato.
+  </p>
+
+  <p>
+    Per esempio, puoi creare o salvare sulla scheda SD il file
+    <code>maria.nc</code>. Nella pagina modifichi il nome del file
+    da <code>costycnc.nc</code> a <code>maria.nc</code>.
+  </p>
+
+  <p>
+    A questo punto, pronunciando <strong>"taglia"</strong>,
+    la pagina invia il comando per eseguire
+    <code>maria.nc</code> dalla scheda SD.
+    La macchina eseguirà quindi il G-code contenuto nel file
+    <code>maria.nc</code>.
+  </p>
+
+  <p>
+    In questo modo il comando vocale rimane sempre lo stesso:
+    <strong>"taglia"</strong>. È il nome del file configurato nella pagina
+    a stabilire quale programma G-code deve essere eseguito.
+  </p>
+
+
+  <h3>Come vengono inviati i comandi</h3>
+
+  <p>
+    I comandi di movimento vengono trasformati dalla pagina
+    in richieste HTTP contenenti G-code.
+    Ad esempio:
+  </p>
+
+  <pre style="background:#f6f8fa; padding:12px; border-radius:6px; overflow:auto;"><code>http://{IP}/command?commandText=M03 S{S} G91 G21 F{F} G01 X{n}</code></pre>
+
+  <p>
+    Dopo ogni comando di movimento viene inviato automaticamente
+    <strong><code>S0</code></strong> per spegnere il filo caldo.
+  </p>
+
+
+  <h3>Riconoscimento vocale</h3>
+
+  <p>
+    Il riconoscimento vocale utilizza la
+    <strong>Web Speech API</strong>.
+    Il funzionamento dipende dal supporto del browser e dalla
+    disponibilità del riconoscimento vocale sul dispositivo.
+  </p>
+
+  <p>
+    È possibile utilizzare browser come
+    <strong>Google Chrome</strong> e
+    <strong>Microsoft Edge</strong>, oltre ad alcuni browser
+    compatibili su dispositivi Android.
+  </p>
+
+
+  <h3>Domande frequenti</h3>
+
+  <h4>Come si controlla una CNC con la voce?</h4>
+
+  <p>
+    Il browser riconosce il comando vocale in italiano,
+    lo interpreta e lo converte in un comando G-code.
+    Il comando viene quindi inviato tramite HTTP al controller
+    CNC attraverso la rete WiFi.
+  </p>
+
+
+  <h4>Quali CNC sono compatibili?</h4>
+
+  <p>
+    Sono compatibili i controller che dispongono di WiFi
+    e di un web server capace di ricevere richieste HTTP
+    contenenti comandi G-code.
+  </p>
+
+
+  <h4>La MKS-DLC32 è compatibile?</h4>
+
+  <p>
+    Sì. La MKS-DLC32 è basata su ESP32 e dispone di
+    connettività WiFi. Quando è configurata per ricevere
+    comandi tramite la propria interfaccia web, può essere
+    utilizzata con questa pagina.
+  </p>
+
+
+  <h4>È compatibile con CostyCNC?</h4>
+
+  <p>
+    Sì. Le macchine CostyCNC compatibili utilizzano
+    controller MKS-DLC32 con WiFi e possono ricevere
+    comandi G-code tramite la rete.
+  </p>
+
+
+  <h4>Quale file viene eseguito quando dico "taglia"?</h4>
+
+  <p>
+    Viene eseguito il file <code>.nc</code> indicato nella
+    configurazione della pagina e presente sulla scheda SD
+    della MKS-DLC32.
+  </p>
+
+  <p>
+    Il nome predefinito è <code>costycnc.nc</code>, ma puoi
+    cambiarlo. Ad esempio, se sulla scheda SD hai
+    <code>maria.nc</code> e nella pagina hai impostato
+    <code>maria.nc</code> come file da eseguire, pronunciando
+    <strong>"taglia"</strong> verrà eseguito <code>maria.nc</code>.
+  </p>
+
+
+  <h4>È necessario installare un programma?</h4>
+
+  <p>
+    Il controllo viene eseguito direttamente dal browser.
+    Non è necessario installare un software CNC dedicato
+    per utilizzare questa interfaccia.
+  </p>
+
+
+  <!-- ==========================================================
+       DATI STRUTTURATI JSON-LD
+       Descrivono la web application e le sue caratteristiche.
+       ========================================================== -->
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Controllo vocale CNC dal browser",
+    "url": "https://costycnc.it/ai/5",
+    "description": "Interfaccia web per controllare macchine CNC tramite comandi vocali in italiano e pulsanti. I comandi vengono trasformati in G-code e inviati tramite HTTP a controller CNC dotati di WiFi e web server.",
+    "applicationCategory": "UtilitiesApplication",
+    "operatingSystem": "Web Browser",
+    "browserRequirements": "Browser con supporto alla Web Speech API e connessione alla rete del controller CNC",
+    "inLanguage": "it",
+    "featureList": [
+      "Controllo CNC tramite comandi vocali in italiano",
+      "Invio di G-code tramite HTTP",
+      "Controllo degli assi X, Y e Z",
+      "Controllo tramite WiFi",
+      "Compatibilità con controller ESP32",
+      "Compatibilità con MKS-DLC32",
+      "Esecuzione di file G-code dalla scheda SD",
+      "Nome del file G-code configurabile",
+      "Utilizzo tramite browser"
+    ],
+    "about": [
+      {
+        "@type": "Thing",
+        "name": "Controllo vocale CNC"
+      },
+      {
+        "@type": "Thing",
+        "name": "G-code"
+      },
+      {
+        "@type": "Thing",
+        "name": "MKS-DLC32"
+      },
+      {
+        "@type": "Thing",
+        "name": "ESP32"
+      },
+      {
+        "@type": "Thing",
+        "name": "Web Speech API"
+      },
+      {
+        "@type": "Thing",
+        "name": "CostyCNC"
+      }
+    ],
+    "keywords": [
+      "controllo vocale CNC",
+      "comandi vocali CNC",
+      "CNC in italiano",
+      "G-code vocale",
+      "controllo CNC WiFi",
+      "Web Speech API CNC",
+      "controllo CNC dal browser",
+      "ESP32 CNC",
+      "ESP8266 CNC",
+      "MKS-DLC32",
+      "CostyCNC",
+      "hot wire CNC",
+      "filo caldo CNC",
+      "G-code da scheda SD"
+    ]
+  }
+  </script>
+
+</section>
+
+
+
+<script>
+const b = document.getElementById('b');
+const s = document.getElementById('s');
+const t = document.getElementById('t');
+const ipInput = document.getElementById('ip');
+const pwmInput = document.getElementById('pwm');
+const velInput = document.getElementById('vel');
+const movInput = document.getElementById('mov');
+
+// ---- VARIABILI ----
+let IP = localStorage.getItem('espIp') || '192.168.1.36';
+let S  = localStorage.getItem('espS')  || '700';
+let F  = localStorage.getItem('espF')  || '500';
+let D  = localStorage.getItem('espD')  || '10';
+
+// ---- CASELLE ----
+const CASELLE = [
+    'avanti-base', 'avanti-num',
+    'dietro-base', 'dietro-num',
+    'su-base',     'su-num',
+    'giu-base',    'giu-num',
+    'gira-base',   'gira-num',
+    'taglia-base'
+];
+
+// ---- TEMPLATE ----
+const TEMPLATE = {
+    'avanti-base': 'http://{IP}/command?commandText=M03 S{S} G91 G21 F{F} G01 X{D}',
+    'avanti-num':  'http://{IP}/command?commandText=M03 S{S} G91 G21 F{F} G01 X{n}',
+    'dietro-base': 'http://{IP}/command?commandText=M03 S{S} G91 G21 F{F} G01 X-{D}',
+    'dietro-num':  'http://{IP}/command?commandText=M03 S{S} G91 G21 F{F} G01 X-{n}',
+    'su-base':     'http://{IP}/command?commandText=M03 S{S} G91 G21 F{F} G01 Y-{D}',
+    'su-num':      'http://{IP}/command?commandText=M03 S{S} G91 G21 F{F} G01 Y-{n}',
+    'giu-base':    'http://{IP}/command?commandText=M03 S{S} G91 G21 F{F} G01 Y{D}',
+    'giu-num':     'http://{IP}/command?commandText=M03 S{S} G91 G21 F{F} G01 Y{n}',
+    'gira-base':   'http://{IP}/command?commandText=M03 S{S} G91 G21 F{F} G01 Z8',
+    'gira-num':    'http://{IP}/command?commandText=M03 S{S} G91 G21 F{F} G01 Z{n}',
+    'taglia-base': 'http://{IP}/command?commandText=[ESP220]/costycnc.nc'
+};
+
+function risolviTemplate(testo) {
+    return testo
+        .replace(/\{IP\}/g, IP)
+        .replace(/\{S\}/g, S)
+        .replace(/\{F\}/g, F)
+        .replace(/\{D\}/g, D);
+}
+
+// ---- POPOLA I MENU ----
+for (let v = 100; v <= 1000; v += 100) pwmInput.innerHTML += `<option value="${v}">${v}</option>`;
+for (let v = 100; v <= 1000; v += 100) velInput.innerHTML += `<option value="${v}">${v}</option>`;
+for (let v = 2000; v <= 10000; v += 1000) velInput.innerHTML += `<option value="${v}">${v}</option>`;
+
+ipInput.value = IP;
+pwmInput.value = S;
+velInput.value = F;
+movInput.value = D;
+
+// ---- REFRESH / SAVE / LOAD ----
+function refreshCaselle() {
+    CASELLE.forEach(id => {
+        document.getElementById(id).value = risolviTemplate(TEMPLATE[id]);
+    });
+}
+
+function save() {
+    const map = {};
+    CASELLE.forEach(id => map[id] = document.getElementById(id).value);
+    localStorage.setItem('gcodeMap', JSON.stringify(map));
+}
+
+function load() {
+    const saved = JSON.parse(localStorage.getItem('gcodeMap') || '{}');
+    CASELLE.forEach(id => {
+        document.getElementById(id).value = saved[id] !== undefined ? saved[id] : risolviTemplate(TEMPLATE[id]);
+    });
+    save();
+}
+
+CASELLE.forEach(id => {
+    document.getElementById(id).addEventListener('input', save);
+});
+
+// ---- CAMBIO IP / S / F / D ----
+ipInput.addEventListener('input', () => {
+    IP = ipInput.value.trim() || '192.168.1.36';
+    localStorage.setItem('espIp', IP);
+    refreshCaselle();
+    save();
+    s.textContent = `IP aggiornato: ${IP}`;
+});
+
+pwmInput.addEventListener('change', () => {
+    S = pwmInput.value;
+    localStorage.setItem('espS', S);
+    refreshCaselle();
+    save();
+    s.textContent = `PWM aggiornato: S${S}`;
+});
+
+velInput.addEventListener('change', () => {
+    F = velInput.value;
+    localStorage.setItem('espF', F);
+    refreshCaselle();
+    save();
+    s.textContent = `Velocità aggiornata: F${F}`;
+});
+
+movInput.addEventListener('input', () => {
+    D = movInput.value || '10';
+    localStorage.setItem('espD', D);
+    refreshCaselle();
+    save();
+    s.textContent = `Movimento: ${D}mm`;
+});
+
+document.getElementById('resetAllBtn').onclick = () => {
+    localStorage.removeItem('gcodeMap');
+    refreshCaselle();
+    save();
+    s.textContent = 'Ripristinati i default';
+};
+
+// ---- INVIO ----
+function send(url) {
+    return fetch(url, { mode: 'no-cors' }).catch(() => {});
+}
+
+async function sendWithStop(url) {
+    s.textContent = `Invio: ${url}`;
+    await send(url);
+    await new Promise(res => setTimeout(res, 200));
+    const stopUrl = url.replace(/commandText=.*/, 'commandText=S0');
+    s.textContent += `  →  Stop: ${stopUrl}`;
+    await send(stopUrl);
+}
+
+function valore(id) {
+    return document.getElementById(id).value;
+}
+
+// ---- PULSANTI ▶ ----
+document.querySelectorAll('.cmd-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const id = btn.dataset.target;
+        await sendWithStop(valore(id));
+    });
+});
+
+// Init
+load();
+
+// ---- VOCE ----
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SR) { s.textContent = "Browser non supportato"; b.disabled = true; }
+else {
+    const r = new SR();
+    r.lang = 'it-IT';
+    r.continuous = false;
+    r.interimResults = false;
+
+    b.onclick = () => {
+        b.disabled = true;
+        s.textContent = "In ascolto...";
+        t.textContent = "";
+        try { r.start(); } catch(e) {}
+    };
+
+    r.onresult = async (e) => {
+        const txt = e.results[0][0].transcript
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim();
+        t.textContent = `Hai detto: "${txt}"`;
+
+        function numeroDopo(parola) {
+            const m = txt.match(new RegExp('\\b' + parola + '\\s+(\\d+)'));
+            return m ? m[1] : null;
+        }
+
+        async function inviaCon(id, n) {
+            let url = valore(id);
+            if (n !== null) url = url.replace(/\{n\}/g, n);
+            await sendWithStop(url);
+        }
+
+        if (/\btagli(a|o|are|i)?\b/.test(txt)) {
+            await inviaCon('taglia-base', null); return;
+        }
+        if (/\bavanti\b/.test(txt)) {
+            const n = numeroDopo('avanti');
+            await inviaCon(n ? 'avanti-num' : 'avanti-base', n); return;
+        }
+        if (/\bdietro\b/.test(txt)) {
+            const n = numeroDopo('dietro');
+            await inviaCon(n ? 'dietro-num' : 'dietro-base', n); return;
+        }
+        if (/\bsu\b/.test(txt)) {
+            const n = numeroDopo('su');
+            await inviaCon(n ? 'su-num' : 'su-base', n); return;
+        }
+        if (/\bgiu\b/.test(txt)) {
+            const n = numeroDopo('giu');
+            await inviaCon(n ? 'giu-num' : 'giu-base', n); return;
+        }
+        if (/\bgira\b/.test(txt)) {
+            const n = numeroDopo('gira');
+            await inviaCon(n ? 'gira-num' : 'gira-base', n); return;
+        }
+
+        s.textContent = `Comando non riconosciuto: "${txt}"`;
+    };
+
+    r.onerror = (e) => { if (e.error !== 'no-speech') s.textContent = "Errore: " + e.error; };
+    r.onend = () => { b.disabled = false; };
+}
+</script>
+
+
+
+<!-- ============================================================
+     VIDEO YOUTUBE — LAZY LOAD
+     Il player YouTube viene caricato solo dopo il click.
+     Sostituisci VIDEO_ID con l'ID del video YouTube.
+     ============================================================ -->
+
+<section id="video-youtube"
+  style="max-width:1100px; margin:40px auto 0; text-align:left;">
+
+  <h2>Video: controllo vocale CNC</h2>
+
+  <p>
+    Guarda come utilizzare il controllo vocale per inviare
+    comandi a una macchina CNC direttamente dal browser.
+  </p>
+
+  <div id="youtube-lazy"
+    data-video-id="VIDEO_ID"
+    style="
+      position:relative;
+      width:100%;
+      aspect-ratio:16/9;
+      background:#000;
+      border-radius:10px;
+      overflow:hidden;
+      cursor:pointer;
+      box-shadow:0 2px 6px rgba(0,0,0,0.15);
+    ">
+
+    <!-- Anteprima -->
+    <img
+      src="https://img.youtube.com/vi/4lQNjOihMco/maxresdefault.jpg"
+      alt="Video: controllo vocale CNC"
+      loading="lazy"
+      style="
+        width:100%;
+        height:100%;
+        object-fit:cover;
+        display:block;
+      "
+    >
+
+    <!-- Pulsante Play -->
+    <div
+      style="
+        position:absolute;
+        top:50%;
+        left:50%;
+        transform:translate(-50%,-50%);
+        width:70px;
+        height:50px;
+        background:#ff0000;
+        border-radius:14px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        box-shadow:0 2px 8px rgba(0,0,0,0.4);
+      "
+      aria-label="Riproduci video">
+
+      <span
+        style="
+          width:0;
+          height:0;
+          border-top:11px solid transparent;
+          border-bottom:11px solid transparent;
+          border-left:17px solid white;
+          margin-left:4px;
+        ">
+      </span>
+
+    </div>
+
+  </div>
+
+  <script>
+    document.getElementById("youtube-lazy").addEventListener("click", function () {
+
+      const container = this;
+      const videoId = container.dataset.videoId;
+
+      const iframe = document.createElement("iframe");
+
+      iframe.width = "100%";
+      iframe.height = "100%";
+
+      iframe.src =
+        "https://www.youtube-nocookie.com/embed/" +
+        encodeURIComponent(videoId) +
+        "?autoplay=1&rel=0";
+
+      iframe.title = "Controllo vocale CNC";
+      iframe.frameBorder = "0";
+
+      iframe.allow =
+        "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+
+      iframe.allowFullscreen = true;
+
+      iframe.style.width = "100%";
+      iframe.style.height = "100%";
+      iframe.style.border = "0";
+
+      container.innerHTML = "";
+      container.appendChild(iframe);
+    });
+  </script>
+
+</section>
+
+</body>
+</html>
